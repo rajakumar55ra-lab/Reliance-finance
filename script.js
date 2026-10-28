@@ -1,9 +1,6 @@
 "use strict";
 
-// Render backend URL
-const API_BASE_URL =
-  "https://reliance-finance-4fhm.onrender.com";
-
+const API_BASE_URL = "https://reliance-finance-4fhm.onrender.com";
 const customerForm = document.getElementById("customerForm");
 
 function escapeHtml(value) {
@@ -41,7 +38,7 @@ async function apiRequest(path, options = {}) {
   return result;
 }
 
-// ADMIN: submit a demo application
+// ADMIN: submit demo application
 if (customerForm) {
   customerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -58,20 +55,14 @@ if (customerForm) {
       return;
     }
 
-    if (
-      !loanAmount ||
-      !Number.isFinite(Number(loanAmount)) ||
-      Number(loanAmount) <= 0
-    ) {
+    if (!loanAmount || !Number.isFinite(Number(loanAmount)) ||
+        Number(loanAmount) <= 0) {
       showAdminMessage("Enter a valid demo loan amount.", "red");
       return;
     }
 
-    if (
-      !Number.isFinite(Number(percentage)) ||
-      Number(percentage) < 0 ||
-      Number(percentage) > 100
-    ) {
+    if (!Number.isFinite(Number(percentage)) ||
+        Number(percentage) < 0 || Number(percentage) > 100) {
       showAdminMessage("Percentage must be between 0 and 100.", "red");
       return;
     }
@@ -103,11 +94,7 @@ if (customerForm) {
         })
       });
 
-      showAdminMessage(
-        "Demo application saved successfully.",
-        "green"
-      );
-
+      showAdminMessage("Demo application saved successfully.", "green");
       customerForm.reset();
       await loadCustomers();
     } catch (error) {
@@ -119,7 +106,7 @@ if (customerForm) {
   });
 }
 
-// ADMIN: show saved applications
+// ADMIN: list applications
 async function loadCustomers() {
   const list = document.getElementById("customerList");
   if (!list) return;
@@ -157,11 +144,11 @@ async function loadCustomers() {
     });
   } catch (error) {
     console.error(error);
-    list.textContent = "Could not load applications. Check the server and database.";
+    list.textContent = "Could not load applications. Check server and database.";
   }
 }
 
-// STATUS PAGE: look up the latest application by mobile number
+// STATUS PAGE: check application
 async function checkStatus() {
   const mobileInput = document.getElementById("mobileNumber");
   const resultBox = document.getElementById("statusResult");
@@ -201,13 +188,34 @@ async function checkStatus() {
         <p><b>Progress:</b> ${Number(item.percentage || 0)}%</p>
         <p><b>Status:</b> ${escapeHtml(item.status || "Pending")}</p>
         <p><b>Submitted:</b> ${escapeHtml(item.created_at || "-")}</p>
+
+        <hr>
+        <h3>Demo Bank Details</h3>
+        <p><b>Bank:</b> ${escapeHtml(item.bank_name || "Not provided")}</p>
+        <p><b>Account Holder:</b> ${escapeHtml(item.account_holder_name || "Not provided")}</p>
+        <p><b>Account Number:</b> ${escapeHtml(item.account_number || "Not provided")}</p>
+        <p><b>IFSC:</b> ${escapeHtml(item.ifsc_code || "Not provided")}</p>
+        <p><b>Demo UPI ID:</b> ${escapeHtml(item.upi_number || "Not provided")}</p>
+
+        <div id="demoQrCode" style="margin:20px auto;display:flex;justify-content:center"></div>
+        <p style="text-align:center">DEMO ONLY — NOT FOR PAYMENT.</p>
         <p>This is demo information only, not a loan approval.</p>
       </div>
     `;
+
+    const qrBox = document.getElementById("demoQrCode");
+    if (qrBox && typeof QRCode !== "undefined") {
+      new QRCode(qrBox, {
+        text: "DEMO ONLY - NOT A PAYMENT",
+        width: 180,
+        height: 180
+      });
+    } else if (qrBox) {
+      qrBox.textContent = "QR library did not load.";
+    }
   } catch (error) {
     console.error(error);
-    resultBox.textContent =
-      error.message || "Unable to check status. Please try again.";
+    resultBox.textContent = error.message || "Unable to check status.";
   }
 }
 
@@ -227,5 +235,4 @@ if (menuBtn && mainNav) {
   });
 }
 
-// Load list only on the admin page
 loadCustomers();
