@@ -43,46 +43,31 @@ app.post("/submit-application", async (req, res) => {
       });
     }
 
-    const {
-      name,
-      mobile,
-      loanType,
-      loanAmount,
-      returnYear,
-      percentage,
-      aadhaarLast4,
-      panLast4,
-      charge,
-      chargeAmount,
-      bankName,
-      accountHolderName,
-      accountNumber,
-      ifscCode,
-      upiNumber
-    } = req.body || {};
+    const body = req.body || {};
 
-    const cleanName = String(name || "").trim();
-    const cleanMobile = String(mobile || "").trim();
-    const amount = Number(loanAmount);
-    const rate = Number(percentage ?? 0);
+    const name = String(body.name || "").trim();
+    const mobile = String(body.mobile || "").trim();
+    const loanType = String(body.loanType || "").trim();
+    const loanAmount = Number(body.loanAmount);
+    const percentage = Number(body.percentage ?? 0);
 
-    if (!cleanName || !/^\d{10}$/.test(cleanMobile)) {
+    if (!name || !/^\d{10}$/.test(mobile)) {
       return res.status(400).json({
         success: false,
-        message: "Enter a name and a valid 10-digit demo mobile number."
+        message: "Enter a name and valid 10-digit demo mobile number."
       });
     }
 
     if (
-      !String(loanType || "").trim() ||
-      loanAmount === undefined ||
-      loanAmount === null ||
-      loanAmount === "" ||
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      !Number.isFinite(rate) ||
-      rate < 0 ||
-      rate > 100
+      !loanType ||
+      body.loanAmount === "" ||
+      body.loanAmount === undefined ||
+      body.loanAmount === null ||
+      !Number.isFinite(loanAmount) ||
+      loanAmount <= 0 ||
+      !Number.isFinite(percentage) ||
+      percentage < 0 ||
+      percentage > 100
     ) {
       return res.status(400).json({
         success: false,
@@ -90,52 +75,57 @@ app.post("/submit-application", async (req, res) => {
       });
     }
 
-    const optionalNumber = (value) => {
-      if (value === undefined || value === null || value === "") {
-        return 0;
-      }
-      const n = Number(value);
-      return Number.isFinite(n) && n >= 0 ? n : null;
-    };
+    // Charge is a TEXT label, e.g. "Processing Charge".
+    // Charge amount is a numeric value.
+    const charge = String(body.charge || "").trim();
+    const rawChargeAmount = body.chargeAmount;
 
-    const chargeValue = optionalNumber(charge);
-    const chargeAmountValue = optionalNumber(chargeAmount);
+    const chargeAmount =
+      rawChargeAmount === "" ||
+      rawChargeAmount === undefined ||
+      rawChargeAmount === null
+        ? 0
+        : Number(rawChargeAmount);
 
-    if (chargeValue === null || chargeAmountValue === null) {
+    if (
+      !Number.isFinite(chargeAmount) ||
+      chargeAmount < 0
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid demo charge value."
+        message: "Enter a valid demo charge amount."
       });
     }
 
     const { data, error } = await supabase
       .from("applications")
       .insert([{
-        name: cleanName,
-        mobile: cleanMobile,
-        loan_type: String(loanType).trim(),
-        loan_amount: amount,
-        return_year: String(returnYear || ""),
-        percentage: rate,
+        name,
+        mobile,
+        loan_type: loanType,
+        loan_amount: loanAmount,
+        return_year: String(body.returnYear || ""),
+        percentage,
         status: "Pending",
-        aadhaar_last4: String(aadhaarLast4 || ""),
-        pan_last4: String(panLast4 || ""),
-        charge: chargeValue,
-        charge_amount: chargeAmountValue,
-        bank_name: String(bankName || ""),
-        account_holder_name: String(accountHolderName || ""),
-        account_number: String(accountNumber || ""),
-        ifsc_code: String(ifscCode || ""),
-        upi_number: String(upiNumber || "")
+        aadhaar_last4: String(body.aadhaarLast4 || ""),
+        pan_last4: String(body.panLast4 || ""),
+        charge,
+        charge_amount: chargeAmount,
+        bank_name: String(body.bankName || ""),
+        account_holder_name: String(body.accountHolderName || ""),
+        account_number: String(body.accountNumber || ""),
+        ifsc_code: String(body.ifscCode || ""),
+        upi_number: String(body.upiNumber || "")
       }])
       .select()
       .single();
 
     if (error) {
       console.error("Supabase insert error:", error.message);
+
       return res.status(500).json({
         success: false,
-        message: "Could not save application. Check the Supabase table columns."
+        message: "Could not save application. Check database columns."
       });
     }
 
@@ -145,6 +135,7 @@ app.post("/submit-application", async (req, res) => {
     });
   } catch (error) {
     console.error("Submit error:", error.message);
+
     return res.status(500).json({
       success: false,
       message: "Server error."
@@ -152,7 +143,9 @@ app.post("/submit-application", async (req, res) => {
   }
 });
 
-// Admin: list demo applications
+// List applications for the demo admin page.
+// IMPORTANT: Protect this route with admin authentication before
+// using any real customer information.
 app.get("/admin/applications", async (req, res) => {
   try {
     if (!supabase) {
@@ -164,12 +157,15 @@ app.get("/admin/applications", async (req, res) => {
 
     const { data, error } = await supabase
       .from("applications")
-      .select("*")
+      .select(
+        "id,name,mobile,loan_type,loan_amount,return_year,percentage,status,created_at"
+      )
       .order("created_at", { ascending: false })
       .limit(200);
 
     if (error) {
       console.error("Admin list error:", error.message);
+
       return res.status(500).json({
         success: false,
         message: "Could not load applications."
@@ -182,6 +178,7 @@ app.get("/admin/applications", async (req, res) => {
     });
   } catch (error) {
     console.error("Admin error:", error.message);
+
     return res.status(500).json({
       success: false,
       message: "Server error."
@@ -189,7 +186,7 @@ app.get("/admin/applications", async (req, res) => {
   }
 });
 
-// Check the latest demo application using its mobile number
+// Check latest demo application by mobile number
 app.get("/check-application", async (req, res) => {
   try {
     if (!supabase) {
@@ -210,7 +207,9 @@ app.get("/check-application", async (req, res) => {
 
     const { data, error } = await supabase
       .from("applications")
-      .select("id,name,mobile,loan_type,loan_amount,return_year,percentage,status,created_at")
+      .select(
+        "id,name,mobile,loan_type,loan_amount,return_year,percentage,status,created_at"
+      )
       .eq("mobile", mobile)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -218,6 +217,7 @@ app.get("/check-application", async (req, res) => {
 
     if (error) {
       console.error("Status lookup error:", error.message);
+
       return res.status(500).json({
         success: false,
         message: "Could not check application status."
@@ -230,6 +230,7 @@ app.get("/check-application", async (req, res) => {
     });
   } catch (error) {
     console.error("Status error:", error.message);
+
     return res.status(500).json({
       success: false,
       message: "Server error."
